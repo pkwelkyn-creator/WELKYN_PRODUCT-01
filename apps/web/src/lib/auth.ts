@@ -1,9 +1,9 @@
-import NextAuth from 'next-auth';
+import NextAuth, { type NextAuthResult } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { prisma } from '@welkyn/database';
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const nextAuth: NextAuthResult = NextAuth({
   session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
@@ -62,3 +62,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 });
+
+export const handlers: NextAuthResult['handlers'] = nextAuth.handlers;
+export const signIn: NextAuthResult['signIn'] = nextAuth.signIn;
+export const signOut: NextAuthResult['signOut'] = nextAuth.signOut;
+export const auth: NextAuthResult['auth'] = nextAuth.auth;

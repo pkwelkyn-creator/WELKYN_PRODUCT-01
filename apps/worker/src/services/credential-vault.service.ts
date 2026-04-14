@@ -47,8 +47,8 @@ export async function storeCredential(
       provider,
       accessLevel,
       label,
-      encryptedData,
-      dekEncrypted,
+      encryptedData: new Uint8Array(encryptedData),
+      dekEncrypted: new Uint8Array(dekEncrypted),
       status: 'PENDING_VALIDATION',
     },
   });
