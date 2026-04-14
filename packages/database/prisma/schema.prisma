@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  VIEWER
+}
+
+enum CloudProvider {
+  AWS
+  AZURE
+  GCP
+  CLOUDFLARE
+}
+
+enum CredentialStatus {
+  PENDING_VALIDATION
+  VALID
+  INVALID
+  REVOKED
+}
+
+enum AccessLevel {
+  READ_ONLY
+  PRIVILEGED
+}
+
+enum ScanStatus {
+  QUEUED
+  COLLECTING
+  ANALYZING
+  COMPLETE
+  FAILED
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum Confidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ReportTier {
+  TIER1
+  TIER2
+}
+
+// ─── Core Models ─────────────────────────────────────────────────────────────
+
+model Tenant {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  plan          Plan     @default(FREE)
+  customDomain  String?  @unique
+  brandingConfig Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  credentials   CloudCredential[]
+  scans         Scan[]
+  reports       Report[]
+
+  @@map("tenants")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  tenantId      String
+  email         String
+  passwordHash  String?
+  name          String?
+  role          UserRole @default(VIEWER)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([email])
+  @@map("users")
+}
+
+model CloudCredential {
+  id            String           @id @default(uuid())
+  tenantId      String
+  provider      CloudProvider
+  accessLevel   AccessLevel      @default(READ_ONLY)
+  label         String
+  encryptedData Bytes
+  dekEncrypted  Bytes
+  status        CredentialStatus @default(PENDING_VALIDATION)
+  lastValidated DateTime?
+  metadata      Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, provider])
+  @@map("cloud_credentials")
+}
+
+model Scan {
+  id             String     @id @default(uuid())
+  tenantId       String
+  status         ScanStatus @default(QUEUED)
+  triggeredBy    String
+  providers      CloudProvider[]
+  progress       Int        @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?
+  collectionData Json?
+  createdAt      DateTime   @default(now())
+
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  findings       Finding[]
+  reports        Report[]
+
+  @@index([tenantId, status])
+  @@map("scans")
+}
+
+model Finding {
+  id                   String     @id @default(uuid())
+  scanId               String
+  tenantId             String
+  provider             CloudProvider
+  category             String
+  severity             Severity
+  title                String
+  description          String
+  currentMonthlyCost   Decimal    @db.Decimal(12, 2)
+  estimatedSavings     Decimal    @db.Decimal(12, 2)
+  confidence           Confidence
+  recommendation       String
+  terraformSuggestion  String?
+  aiInsight            String?
+  details              Json
+  createdAt            DateTime   @default(now())
+
+  scan                 Scan       @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, severity])
+  @@index([scanId])
+  @@map("findings")
+}
+
+model Report {
+  id        String     @id @default(uuid())
+  tenantId  String
+  scanId    String
+  tier      ReportTier
+  data      Json
+  pdfUrl    String?
+  shareToken String?   @unique
+  createdAt DateTime   @default(now())
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  scan      Scan       @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("reports")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String?
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
